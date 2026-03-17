@@ -31,6 +31,27 @@ export OPENAI_API_KEY='your-key'
 
 See [llm setup](https://llm.datasette.io/en/stable/setup.html) and [yt-dlp](https://github.com/yt-dlp/yt-dlp).
 
+## LLM model and cost (March 2026)
+
+The default model is **gpt-4o-mini** (OpenAI’s 4o family). We use it because it’s cost‑efficient for summarization and gives a good quality/speed tradeoff; transcript summarization doesn’t require the latest flagship model.
+
+**Approximate pricing (March 2026):**
+
+| Model        | Input (per 1M tokens) | Output (per 1M tokens) |
+|-------------|------------------------|-------------------------|
+| gpt-4o-mini | ~$0.15                 | ~$0.60                  |
+| gpt-4o      | higher                 | higher                  |
+| gpt-5.x     | varies                 | varies                  |
+
+A typical 30–60 minute video transcript is on the order of 10k–30k input tokens and a few thousand output tokens per run, so whole-transcript or chapter runs usually cost a few cents with gpt-4o-mini. For up‑to‑date numbers, see [OpenAI pricing](https://openai.com/api/pricing/).
+
+**Changing the model:** You can override the model in two ways:
+
+1. **CLI:** `./yt-summarize --model gpt-4o 'https://...'` (or any model id supported by llm).
+2. **Templates:** Edit the `model:` line in `prompts/whole.yaml`, `prompts/chapter.yaml`, etc. The `--model` flag takes precedence over the template when set.
+
+So you can stick with 4o-mini for cheap batch runs or switch to gpt-4o, gpt-5, or another provider/model that llm supports.
+
 ## Usage
 
 By default, the summary is written into the cache directory for the video and printed to stdout. Use `-o FILE` only when you want a different path or to suppress stdout.
@@ -120,7 +141,7 @@ With `--mode chapters`, each chapter is summarized and concatenated. With `--mer
 | `--merge` | With `--mode chapters`, add a final merged overall summary |
 | `--no-cache` | Re-run yt-dlp and overwrite cache |
 | `--cache-dir DIR` | Use DIR for cache (default: `./cache` or `$YT_SUMMARIZE_CACHE` or `~/.cache/yt-summarize`) |
-| `--model MODEL` | Pass `-m MODEL` to llm (e.g. gpt-4o-mini) |
+| `--model MODEL` | Override model passed to llm (default from template: gpt-4o-mini; see [LLM model and cost](#llm-model-and-cost-march-2026)) |
 
 ## Cache
 
