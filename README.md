@@ -33,24 +33,68 @@ See [llm setup](https://llm.datasette.io/en/stable/setup.html) and [yt-dlp](http
 
 ## LLM model and cost (March 2026)
 
-The default model is **gpt-4o-mini** (OpenAI’s 4o family). We use it because it’s cost‑efficient for summarization and gives a good quality/speed tradeoff; transcript summarization doesn’t require the latest flagship model.
+The default model is **gpt-4o-mini** (OpenAI’s 4o family). We use it because it’s cost‑efficient for summarization and gives a good quality/speed tradeoff; transcript summarization doesn’t require the latest flagship model. The [llm](https://llm.datasette.io/) CLI supports multiple providers, so you can point yt-summarize at OpenAI, Anthropic, Google, or others by setting API keys and passing the right model id.
 
-**Approximate pricing (March 2026):**
+All figures below are **approximate USD per 1M tokens** (input / output). Pricing changes over time; check each provider’s official page for current numbers.
 
-| Model        | Input (per 1M tokens) | Output (per 1M tokens) |
-|-------------|------------------------|-------------------------|
-| gpt-4o-mini | ~$0.15                 | ~$0.60                  |
-| gpt-4o      | higher                 | higher                  |
-| gpt-5.x     | varies                 | varies                  |
+### OpenAI
 
-A typical 30–60 minute video transcript is on the order of 10k–30k input tokens and a few thousand output tokens per run, so whole-transcript or chapter runs usually cost a few cents with gpt-4o-mini. For up‑to‑date numbers, see [OpenAI pricing](https://openai.com/api/pricing/).
+| Model        | Input (per 1M) | Output (per 1M) | Notes                    |
+|-------------|----------------|-----------------|--------------------------|
+| gpt-4o-mini | $0.15          | $0.60           | Default; very cheap      |
+| gpt-4.1-mini| $0.40          | $1.60           | 128K context             |
+| gpt-4o      | $2.50          | $10.00          | Legacy 4o                |
+| gpt-4.1     | higher         | higher          | Production 4.1           |
+| gpt-5-mini  | $0.25          | $2.00           | Cheap 5 family           |
+| gpt-5       | $1.25          | $10.00          | Mid-tier 5               |
+| gpt-5.4     | $2.50          | $15.00          | Flagship                 |
 
-**Changing the model:** You can override the model in two ways:
+- **Cached input** is much cheaper (e.g. ~75–90% off) when you reuse long context.
+- **Batch API** and **Flex** tiers can reduce cost further.
+- Official: [OpenAI pricing](https://openai.com/api/pricing/).
 
-1. **CLI:** `./yt-summarize --model gpt-4o 'https://...'` (or any model id supported by llm).
-2. **Templates:** Edit the `model:` line in `prompts/whole.yaml`, `prompts/chapter.yaml`, etc. The `--model` flag takes precedence over the template when set.
+### Anthropic (Claude)
 
-So you can stick with 4o-mini for cheap batch runs or switch to gpt-4o, gpt-5, or another provider/model that llm supports.
+| Model            | Input (per 1M) | Output (per 1M) | Notes              |
+|------------------|----------------|-----------------|--------------------|
+| claude-haiku-4-5 | $1.00          | $5.00           | Fast, cheap         |
+| claude-sonnet-4-5 / 4-6 | $3.00   | $15.00          | Balanced            |
+| claude-opus-4-5 / 4-6   | $5.00   | $25.00          | Flagship            |
+
+- Long-context (>200K input) tiers cost more (e.g. Opus ~$10 / $37.50).
+- Prompt caching: cache reads ~90% cheaper than standard input.
+- Official: [Anthropic pricing](https://docs.anthropic.com/en/docs/about-claude/pricing).
+
+### Google (Gemini)
+
+| Model                    | Input (per 1M) | Output (per 1M) | Notes                |
+|--------------------------|----------------|-----------------|----------------------|
+| gemini-2.5-flash         | ~$0.15         | ~$0.60          | Cheap, fast          |
+| gemini-2.5-flash-lite    | lower          | lower           | Lightweight          |
+| gemini-2.5-pro           | higher         | higher          | Pro 2.5              |
+| gemini-3-flash-preview   | ~$0.25         | ~$0.75          | 3 family, efficient  |
+| gemini-3.1-flash-lite-preview | $0.25    | $0.75+          | 3.1 entry            |
+| gemini-3-pro-preview     | ~$2.00         | ~$12.00         | 3 Pro (tiered >200K) |
+| gemini-3.1-pro-preview   | $2.00          | $12.00          | 3.1 Pro              |
+
+- Gemini 3.x often has tiered pricing for inputs >200K (e.g. 2× input rate).
+- Official: [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing).
+
+### Other providers (llm)
+
+The llm CLI can use additional backends (e.g. **Meta Llama**, **Ollama** for local models). Install the relevant plugin and set keys; then pass the model id with `--model`. See [llm plugins](https://llm.datasette.io/en/stable/plugins.html).
+
+### Typical cost per run
+
+A 30–60 minute video transcript is roughly **10k–30k input tokens** and **2k–6k output tokens** per summary. With **gpt-4o-mini** that’s about **$0.01–0.03** per whole-transcript run; chapter mode costs more (one call per chapter). Using **gpt-5-mini** or **gemini-2.5-flash** is in the same ballpark; **Claude Haiku** or **gpt-4o** is a few cents more; flagship models (Opus, gpt-5.4, Gemini 3.1 Pro) can be 10–30× more per run.
+
+### Changing the model
+
+1. **CLI:** `./yt-summarize --model MODEL_ID 'https://...'`  
+   Examples: `--model gpt-4o`, `--model claude-sonnet-4-5-20250929`, `--model gemini-2.5-flash`.
+2. **Templates:** Edit the `model:` line in `prompts/whole.yaml`, `prompts/chapter.yaml`, `prompts/whole-timestamps.yaml`, and `prompts/merge-chapters.yaml`. The `--model` flag overrides the template when set.
+
+Use different providers by configuring llm (e.g. `llm keys set anthropic`, `llm install llm-gemini`) and then passing the corresponding model id to `--model`.
 
 ## Usage
 
