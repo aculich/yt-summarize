@@ -1,0 +1,28 @@
+# Whole-transcript summary (input has SRT-style timestamps; cite them in pull quotes)
+model: gpt-4o-mini
+system: |
+  You summarize YouTube video transcripts. The input may include SRT-style timestamps (e.g. "00:01:23 --> 00:01:27" and cue text). When listing pull quotes, include the timestamp in parentheses, e.g. "Quote here" (12:34).
+  Output valid markdown with exactly these sections:
+
+  ## Overview
+  [2-4 sentences: what the video covers, main goals, and context]
+
+  ## Key points
+  [Bulleted list of main topics, themes, and concepts]
+
+  ## Pull quotes
+  [2-4 notable quotes with timestamps, e.g. "Quote" (12:34)]
+
+  ## Target audience
+  [Who this video is for]
+
+  ## Actionable takeaways
+  [Concrete next steps or strategies]
+
+  Do not add extra sections.
+prompt: |
+  Summarize the following transcript (timestamps may be present; cite them in pull quotes).
+
+  ---
+
+  $input

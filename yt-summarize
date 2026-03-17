@@ -1,0 +1,241 @@
+#!/usr/bin/env python3
+"""
+yt-summarize: fetch transcript with yt-dlp, summarize with llm.
+Usage: yt-summarize [options] <youtube_url>
+"""
+# Prefer project venv if present (e.g. after ./install-deps.sh)
+import os
+import sys
+_ROOT = os.path.realpath(os.path.join(os.path.dirname(__file__)))
+_VENV_PY = os.path.join(_ROOT, ".venv", "bin", "python3")
+if os.path.exists(_VENV_PY) and sys.executable != _VENV_PY:
+    os.execv(_VENV_PY, [_VENV_PY] + sys.argv)
+
+import argparse
+import re
+import subprocess
+from pathlib import Path
+
+# Project root (directory containing this script)
+ROOT = Path(__file__).resolve().parent
+PROMPTS = ROOT / "prompts"
+CACHE_DEFAULT = ROOT / "cache"
+
+
+def get_video_id(url: str) -> str | None:
+    """Extract video ID from YouTube URL."""
+    m = re.search(r"(?:youtube\.com/watch\?v=|youtu\.be/)([a-zA-Z0-9_-]{11})", url)
+    return m.group(1) if m else None
+
+
+def get_cache_dir(args: argparse.Namespace) -> Path:
+    """Resolve cache directory."""
+    if getattr(args, "cache_dir", None):
+        return Path(args.cache_dir).resolve()
+    env = os.environ.get("YT_SUMMARIZE_CACHE")
+    if env:
+        return Path(env).expanduser().resolve()
+    return (Path.home() / ".cache" / "yt-summarize").resolve()
+
+
+def ensure_deps() -> None:
+    """Check yt-dlp and llm are on PATH."""
+    for cmd in ("yt-dlp", "llm"):
+        if not shutil_which(cmd):
+            print(f"Error: '{cmd}' not found. Run ./install-deps.sh or install manually.", file=sys.stderr)
+            sys.exit(1)
+
+
+def shutil_which(cmd: str) -> str | None:
+    try:
+        import shutil
+        return shutil.which(cmd)
+    except Exception:
+        return None
+
+
+def run_yt_dlp(url: str, cache_dir: Path, video_id: str) -> Path:
+    """Download subs and info.json into cache_dir/video_id/. Returns cache_dir/video_id."""
+    out_dir = cache_dir / video_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_tpl = str(out_dir / "subs")
+    result = subprocess.run(
+        [
+            "yt-dlp",
+            "--quiet",
+            "--write-subs",
+            "--write-auto-subs",
+            "--write-info-json",
+            "--skip-download",
+            "--sub-langs", "en,en-US,en-GB",
+            "--convert-subs", "srt",
+            "-o", out_tpl,
+            url,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        if result.stderr:
+            print(result.stderr, file=sys.stderr)
+        print("Error: yt-dlp failed (e.g. rate limit or no subtitles). Try --no-cache later.", file=sys.stderr)
+        sys.exit(1)
+    return out_dir
+
+
+def find_subtitle_file(cache_video_dir: Path) -> Path | None:
+    """Return first existing subtitle file (.srt or .vtt) in directory."""
+    for ext in (".srt", ".vtt"):
+        for f in cache_video_dir.glob(f"*{ext}"):
+            return f
+    return None
+
+
+def find_info_json(cache_video_dir: Path) -> Path | None:
+    """Return info.json or subs.info.json (yt-dlp -o subs writes subs.info.json)."""
+    for name in ("info.json", "subs.info.json"):
+        p = cache_video_dir / name
+        if p.exists():
+            return p
+    for f in cache_video_dir.glob("*.info.json"):
+        return f
+    return None
+
+
+def get_or_fetch_cache(url: str, cache_dir: Path, video_id: str, no_cache: bool) -> Path:
+    """Return cache_video_dir; fetch with yt-dlp if missing or no_cache."""
+    out_dir = cache_dir / video_id
+    if no_cache:
+        run_yt_dlp(url, cache_dir, video_id)
+        return out_dir
+    sub_file = find_subtitle_file(out_dir)
+    info_file = find_info_json(out_dir)
+    if sub_file and info_file:
+        return out_dir
+    run_yt_dlp(url, cache_dir, video_id)
+    return out_dir
+
+
+def run_llm(stdin_text: str, template_path: Path, model: str | None, extra_params: list) -> str:
+    """Run llm with template and optional -m model; stdin_text as stdin. Returns stdout."""
+    cmd = ["llm", "-t", str(template_path)]
+    if model:
+        cmd.extend(["-m", model])
+    cmd.extend(extra_params)
+    proc = subprocess.run(
+        cmd,
+        input=stdin_text,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    if proc.returncode != 0:
+        print(proc.stderr or "llm failed", file=sys.stderr)
+        sys.exit(1)
+    return proc.stdout
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Summarize YouTube transcripts with yt-dlp + llm")
+    parser.add_argument("url", help="YouTube video URL")
+    parser.add_argument("-o", "--output", dest="output", help="Write summary to FILE")
+    parser.add_argument("-T", "--transcript-out", dest="transcript_out", help="Write transcript to FILE")
+    parser.add_argument("--strip", action="store_true", help="Plain transcript, no timestamps (default)")
+    parser.add_argument("--keep-timestamps", action="store_true", help="Keep SRT/VTT timestamps in transcript")
+    parser.add_argument("--mode", choices=("whole", "chapters"), default="whole", help="Whole transcript or per-chapter")
+    parser.add_argument("--merge", action="store_true", help="With --mode chapters, add merged overall summary")
+    parser.add_argument("--no-cache", action="store_true", help="Re-fetch with yt-dlp")
+    parser.add_argument("--cache-dir", help="Cache directory (default: ./cache or YT_SUMMARIZE_CACHE or ~/.cache/yt-summarize)")
+    parser.add_argument("--model", help="Model for llm (e.g. gpt-4o-mini)")
+    args = parser.parse_args()
+
+    ensure_deps()
+    url = args.url.strip()
+    video_id = get_video_id(url)
+    if not video_id:
+        print("Error: could not parse video ID from URL", file=sys.stderr)
+        return 1
+
+    cache_dir = get_cache_dir(args)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_video = get_or_fetch_cache(url, cache_dir, video_id, args.no_cache)
+
+    sub_file = find_subtitle_file(cache_video)
+    if not sub_file:
+        print("Error: no subtitle file in cache after fetch", file=sys.stderr)
+        return 1
+
+    keep_ts = getattr(args, "keep_timestamps", False)  # default: strip (no timestamps)
+    sys.path.insert(0, str(ROOT))
+    from lib.strip_srt import subtitle_to_text
+    transcript = subtitle_to_text(sub_file, keep_timestamps=keep_ts)
+    if not transcript.strip():
+        print("Error: transcript is empty", file=sys.stderr)
+        return 1
+
+    if getattr(args, "transcript_out", None):
+        Path(args.transcript_out).write_text(transcript, encoding="utf-8")
+
+    if args.mode == "whole":
+        template = PROMPTS / "whole-timestamps.yaml" if keep_ts else PROMPTS / "whole.yaml"
+        summary = run_llm(transcript, template, args.model, [])
+        if getattr(args, "output", None):
+            Path(args.output).write_text(summary, encoding="utf-8")
+        else:
+            print(summary)
+        return 0
+
+    # Chapter mode
+    from lib.chapters import load_chapters, parse_srt_timestamps, parse_vtt_timestamps, slice_transcript_by_chapters
+    info_path = find_info_json(cache_video)
+    if not info_path:
+        print("Warning: no info.json; falling back to whole-transcript mode", file=sys.stderr)
+        template = PROMPTS / "whole-timestamps.yaml" if keep_ts else PROMPTS / "whole.yaml"
+        summary = run_llm(transcript, template, args.model, [])
+        if getattr(args, "output", None):
+            Path(args.output).write_text(summary, encoding="utf-8")
+        else:
+            print(summary)
+        return 0
+
+    chapters = load_chapters(info_path)
+    if not chapters:
+        print("Warning: no chapters in info.json; falling back to whole-transcript mode", file=sys.stderr)
+        template = PROMPTS / "whole-timestamps.yaml" if keep_ts else PROMPTS / "whole.yaml"
+        summary = run_llm(transcript, template, args.model, [])
+        if getattr(args, "output", None):
+            Path(args.output).write_text(summary, encoding="utf-8")
+        else:
+            print(summary)
+        return 0
+
+    raw_subs = sub_file.read_text(encoding="utf-8", errors="replace")
+    if sub_file.suffix.lower() == ".srt":
+        timed_cues = parse_srt_timestamps(raw_subs)
+    else:
+        timed_cues = parse_vtt_timestamps(raw_subs)
+    segments = slice_transcript_by_chapters(timed_cues, chapters)
+    chapter_template = PROMPTS / "chapter.yaml"
+    parts = []
+    for i, (title, segment_text) in enumerate(segments, 1):
+        if not segment_text.strip():
+            parts.append(f"## Chapter {i}: {title}\n\n(No transcript for this segment.)\n")
+            continue
+        summary = run_llm(segment_text, chapter_template, args.model, ["-p", "title", title])
+        parts.append(f"## Chapter {i}: {title}\n\n{summary}\n")
+    combined = "\n".join(parts)
+
+    if args.merge:
+        merge_template = PROMPTS / "merge-chapters.yaml"
+        merged = run_llm(combined, merge_template, args.model, [])
+        combined = f"# Overall summary\n\n{merged}\n\n---\n\n# Per-chapter summaries\n\n{combined}"
+
+    if getattr(args, "output", None):
+        Path(args.output).write_text(combined, encoding="utf-8")
+    else:
+        print(combined)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

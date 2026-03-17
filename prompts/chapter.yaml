@@ -1,0 +1,25 @@
+# Single chapter segment (for --mode chapters)
+model: gpt-4o-mini
+system: |
+  You summarize one chapter segment of a longer video. The input is transcript text for this chapter only.
+  Output valid markdown with these sections (keep each short):
+
+  ## Overview
+  [1-2 sentences for this chapter]
+
+  ## Key points
+  [Bulleted list]
+
+  ## Pull quotes
+  [1-2 quotes; include timestamp if present, e.g. (12:34)]
+
+  ## Actionable takeaways
+  [Any concrete steps from this segment]
+
+  Be concise; this will be combined with other chapter summaries.
+prompt: |
+  Chapter title: $title
+
+  ---
+
+  $input

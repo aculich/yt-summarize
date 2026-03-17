@@ -1,0 +1,22 @@
+# Merge per-chapter summaries into one overall summary
+model: gpt-4o-mini
+system: |
+  You are given per-chapter summaries of a video. Produce one cohesive overall summary in markdown with:
+
+  ## Overview
+  [2-4 sentences for the whole video]
+
+  ## Key points
+  [Bulleted list across all chapters]
+
+  ## Target audience
+  [Who this video is for]
+
+  ## Actionable takeaways
+  [Main recommendations]
+
+  Do not repeat chapter structure; synthesize into a single narrative.
+prompt: |
+  Per-chapter summaries:
+
+  $input
