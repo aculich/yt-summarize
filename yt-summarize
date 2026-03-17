@@ -176,12 +176,21 @@ def main() -> int:
     if getattr(args, "transcript_out", None):
         Path(args.transcript_out).write_text(transcript, encoding="utf-8")
 
+    # Default output: write to cache dir when -o is not specified
+    def default_output_path(mode: str) -> Path:
+        if getattr(args, "output", None):
+            return Path(args.output)
+        if mode == "chapters":
+            return cache_video / "summary-chapters.md"
+        return cache_video / "summary.md"
+
     if args.mode == "whole":
         template = PROMPTS / "whole-timestamps.yaml" if keep_ts else PROMPTS / "whole.yaml"
         summary = run_llm(transcript, template, args.model, [])
-        if getattr(args, "output", None):
-            Path(args.output).write_text(summary, encoding="utf-8")
-        else:
+        out_path = default_output_path("whole")
+        out_path.write_text(summary, encoding="utf-8")
+        if not getattr(args, "output", None):
+            print(f"Wrote {out_path}", file=sys.stderr)
             print(summary)
         return 0
 
@@ -192,9 +201,10 @@ def main() -> int:
         print("Warning: no info.json; falling back to whole-transcript mode", file=sys.stderr)
         template = PROMPTS / "whole-timestamps.yaml" if keep_ts else PROMPTS / "whole.yaml"
         summary = run_llm(transcript, template, args.model, [])
-        if getattr(args, "output", None):
-            Path(args.output).write_text(summary, encoding="utf-8")
-        else:
+        out_path = default_output_path("whole")
+        out_path.write_text(summary, encoding="utf-8")
+        if not getattr(args, "output", None):
+            print(f"Wrote {out_path}", file=sys.stderr)
             print(summary)
         return 0
 
@@ -203,9 +213,10 @@ def main() -> int:
         print("Warning: no chapters in info.json; falling back to whole-transcript mode", file=sys.stderr)
         template = PROMPTS / "whole-timestamps.yaml" if keep_ts else PROMPTS / "whole.yaml"
         summary = run_llm(transcript, template, args.model, [])
-        if getattr(args, "output", None):
-            Path(args.output).write_text(summary, encoding="utf-8")
-        else:
+        out_path = default_output_path("whole")
+        out_path.write_text(summary, encoding="utf-8")
+        if not getattr(args, "output", None):
+            print(f"Wrote {out_path}", file=sys.stderr)
             print(summary)
         return 0
 
@@ -230,9 +241,10 @@ def main() -> int:
         merged = run_llm(combined, merge_template, args.model, [])
         combined = f"# Overall summary\n\n{merged}\n\n---\n\n# Per-chapter summaries\n\n{combined}"
 
-    if getattr(args, "output", None):
-        Path(args.output).write_text(combined, encoding="utf-8")
-    else:
+    out_path = default_output_path("chapters")
+    out_path.write_text(combined, encoding="utf-8")
+    if not getattr(args, "output", None):
+        print(f"Wrote {out_path}", file=sys.stderr)
         print(combined)
     return 0
 
