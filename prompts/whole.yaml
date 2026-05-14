@@ -1,5 +1,5 @@
 # Whole-transcript summary (plain text input, no timestamps)
-model: gpt-4o-mini
+model: gpt-5-nano
 system: |
   You summarize YouTube video transcripts. The input is plain text only (no timestamps).
   Output valid markdown with exactly these sections:

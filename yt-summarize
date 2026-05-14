@@ -21,6 +21,9 @@ ROOT = Path(__file__).resolve().parent
 PROMPTS = ROOT / "prompts"
 CACHE_DEFAULT = ROOT / "cache"
 
+sys.path.insert(0, str(ROOT))
+from lib.model_presets import pick_preset_model, required_context_tokens
+
 
 def get_video_id(url: str) -> str | None:
     """Extract video ID from YouTube URL."""
@@ -116,6 +119,25 @@ def get_or_fetch_cache(url: str, cache_dir: Path, video_id: str, no_cache: bool)
     return out_dir
 
 
+def resolve_llm_model(args: argparse.Namespace, payload: str, job_kind: str) -> str:
+    """Explicit --model wins; else pick from cheap/deep ladder by context fit."""
+    if getattr(args, "model", None):
+        return args.model
+    deep = bool(getattr(args, "deep", False))
+    need = required_context_tokens(payload, job_kind)
+    try:
+        mid = pick_preset_model(deep, need)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    preset = "deep" if deep else "cheap"
+    print(
+        f"Auto-selected model {mid} ({preset} preset; ~{need:,} tokens estimated context required)",
+        file=sys.stderr,
+    )
+    return mid
+
+
 def run_llm(stdin_text: str, template_path: Path, model: str | None, extra_params: list) -> str:
     """Run llm with template and optional -m model; stdin_text as stdin. Returns stdout."""
     cmd = ["llm", "-t", str(template_path)]
@@ -146,7 +168,18 @@ def main() -> int:
     parser.add_argument("--merge", action="store_true", help="With --mode chapters, add merged overall summary")
     parser.add_argument("--no-cache", action="store_true", help="Re-fetch with yt-dlp")
     parser.add_argument("--cache-dir", help="Cache directory (default: ./cache or YT_SUMMARIZE_CACHE or ~/.cache/yt-summarize)")
-    parser.add_argument("--model", help="Model for llm (e.g. gpt-4o-mini)")
+    preset = parser.add_mutually_exclusive_group()
+    preset.add_argument(
+        "--cheap",
+        action="store_true",
+        help="Cheap preset with context-aware model pick (starts from lowest-cost candidates)",
+    )
+    preset.add_argument(
+        "--deep",
+        action="store_true",
+        help="Deep preset with context-aware model pick (starts from strongest candidates)",
+    )
+    parser.add_argument("--model", help="Force model for llm (skips context auto-selection)")
     args = parser.parse_args()
 
     ensure_deps()
@@ -166,7 +199,6 @@ def main() -> int:
         return 1
 
     keep_ts = getattr(args, "keep_timestamps", False)  # default: strip (no timestamps)
-    sys.path.insert(0, str(ROOT))
     from lib.strip_srt import subtitle_to_text
     transcript = subtitle_to_text(sub_file, keep_timestamps=keep_ts)
     if not transcript.strip():
@@ -186,7 +218,8 @@ def main() -> int:
 
     if args.mode == "whole":
         template = PROMPTS / "whole-timestamps.yaml" if keep_ts else PROMPTS / "whole.yaml"
-        summary = run_llm(transcript, template, args.model, [])
+        m_whole = resolve_llm_model(args, transcript, "whole")
+        summary = run_llm(transcript, template, m_whole, [])
         out_path = default_output_path("whole")
         out_path.write_text(summary, encoding="utf-8")
         if not getattr(args, "output", None):
@@ -200,7 +233,8 @@ def main() -> int:
     if not info_path:
         print("Warning: no info.json; falling back to whole-transcript mode", file=sys.stderr)
         template = PROMPTS / "whole-timestamps.yaml" if keep_ts else PROMPTS / "whole.yaml"
-        summary = run_llm(transcript, template, args.model, [])
+        m_whole = resolve_llm_model(args, transcript, "whole")
+        summary = run_llm(transcript, template, m_whole, [])
         out_path = default_output_path("whole")
         out_path.write_text(summary, encoding="utf-8")
         if not getattr(args, "output", None):
@@ -212,7 +246,8 @@ def main() -> int:
     if not chapters:
         print("Warning: no chapters in info.json; falling back to whole-transcript mode", file=sys.stderr)
         template = PROMPTS / "whole-timestamps.yaml" if keep_ts else PROMPTS / "whole.yaml"
-        summary = run_llm(transcript, template, args.model, [])
+        m_whole = resolve_llm_model(args, transcript, "whole")
+        summary = run_llm(transcript, template, m_whole, [])
         out_path = default_output_path("whole")
         out_path.write_text(summary, encoding="utf-8")
         if not getattr(args, "output", None):
@@ -227,18 +262,22 @@ def main() -> int:
         timed_cues = parse_vtt_timestamps(raw_subs)
     segments = slice_transcript_by_chapters(timed_cues, chapters)
     chapter_template = PROMPTS / "chapter.yaml"
+    non_empty = [st for _, st in segments if st.strip()]
+    longest_chapter = max(non_empty, key=len) if non_empty else ""
+    chapter_model = resolve_llm_model(args, longest_chapter if longest_chapter else " ", "chapter")
     parts = []
     for i, (title, segment_text) in enumerate(segments, 1):
         if not segment_text.strip():
             parts.append(f"## Chapter {i}: {title}\n\n(No transcript for this segment.)\n")
             continue
-        summary = run_llm(segment_text, chapter_template, args.model, ["-p", "title", title])
+        summary = run_llm(segment_text, chapter_template, chapter_model, ["-p", "title", title])
         parts.append(f"## Chapter {i}: {title}\n\n{summary}\n")
     combined = "\n".join(parts)
 
     if args.merge:
         merge_template = PROMPTS / "merge-chapters.yaml"
-        merged = run_llm(combined, merge_template, args.model, [])
+        merge_model = resolve_llm_model(args, combined, "merge")
+        merged = run_llm(combined, merge_template, merge_model, [])
         combined = f"# Overall summary\n\n{merged}\n\n---\n\n# Per-chapter summaries\n\n{combined}"
 
     out_path = default_output_path("chapters")

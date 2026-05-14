@@ -1,5 +1,5 @@
 # Single chapter segment (for --mode chapters)
-model: gpt-4o-mini
+model: gpt-5-nano
 system: |
   You summarize one chapter segment of a longer video. The input is transcript text for this chapter only.
   Output valid markdown with these sections (keep each short):
