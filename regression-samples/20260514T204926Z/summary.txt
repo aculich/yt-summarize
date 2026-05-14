@@ -1,0 +1,21 @@
+UTC timestamp: 20260514T204926Z
+llm version: llm, version 0.28
+
+--- cheap: gpt-5-nano ---
+OK gpt-5-nano
+
+--- cheap: gpt-4.1-nano ---
+OK gpt-4.1-nano
+
+--- cheap: gpt-5-mini ---
+OK gpt-5-mini
+
+--- deep: gpt-5.2 ---
+OK gpt-5.2
+
+--- deep: gpt-5 ---
+OK gpt-5
+
+--- deep: gpt-5.1 ---
+OK gpt-5.1
+

@@ -1,0 +1,20 @@
+UTC timestamp: 20260514T204833Z
+llm version: llm, version 0.28
+
+--- cheap: gpt-5-nano ---
+OK gpt-5-nano
+
+--- cheap: gpt-4.1-nano ---
+OK gpt-4.1-nano
+
+--- cheap: gpt-5-mini ---
+OK gpt-5-mini
+
+--- deep: gpt-5.5 ---
+FAIL gpt-5.5 (see /Users/me/projects/yt-summarize/regression-samples/20260514T204833Z/deep-gpt-5.5.err.txt)
+
+--- deep: gpt-5.2 ---
+OK gpt-5.2
+
+--- deep: anthropic/claude-opus-4-5-20251101 SKIPPED (no ANTHROPIC_API_KEY) ---
+

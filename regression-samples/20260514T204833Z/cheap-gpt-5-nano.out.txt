@@ -1,0 +1,20 @@
+## Overview
+This video presents a tiny regression transcript and notes that it contains only two lines, giving the summarizer minimal context. It uses this minimal example to illustrate how lack of context can affect summary quality. The goal is to show the relationship between input length and summarization performance.
+
+## Key points
+- Tiny regression transcript with only two lines
+- Minimal context limits the summarizer’s ability to capture meaning
+- Short inputs challenge the accuracy and usefulness of summaries
+- Context length is a critical factor in effective summarization
+
+## Pull quotes
+- "This is a tiny regression transcript."
+- "It has two lines so the summarizer has minimal context."
+
+## Target audience
+General viewers and practitioners interested in NLP and summarization (e.g., students, developers)
+
+## Actionable takeaways
+- Set expectations for summaries when input length is very short
+- Provide more lines or additional context to improve summarization quality
+- Test summarizers across varying input lengths to understand context effects

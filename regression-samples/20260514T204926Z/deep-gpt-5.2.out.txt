@@ -1,0 +1,20 @@
+## Overview
+The video presents a very short transcript meant as a regression test for a summarizer. Its goal is to provide minimal context and see how the summarization handles extremely limited input.
+
+## Key points
+- The transcript is intentionally tiny and minimal.
+- It’s framed as a regression test example.
+- The speaker notes there are only two lines, limiting available context for summarization.
+
+## Pull quotes
+- "This is a tiny regression transcript."
+- "It has two lines so the summarizer has minimal context."
+
+## Target audience
+- Developers or QA engineers testing summarization systems
+- Anyone evaluating how a summarizer performs with minimal input
+
+## Actionable takeaways
+- Use this transcript as a lightweight regression test case for summarization quality.
+- Add more similar “minimal context” samples to a test suite to check consistency and robustness.
+- Compare outputs across versions to detect unintended changes in summarization behavior.

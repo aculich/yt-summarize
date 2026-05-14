@@ -1,0 +1,22 @@
+## Overview
+This video uses an ultra-short transcript to demonstrate how summarizers handle minimal context. With only two lines, it highlights the challenge of extracting meaningful content from sparse input. The goal is to illustrate the limitations and implications for NLP tools when context is scarce.
+
+## Key points
+- The transcript is described as a tiny regression transcript.
+- It contains only two lines, offering minimal context for summarization.
+- Minimal context challenges the ability to extract meaningful meaning.
+- Demonstrates how short inputs affect content extraction and summary quality.
+- Emphasizes the role of context in effective summarization.
+
+## Pull quotes
+- "This is a tiny regression transcript."
+- "It has two lines so the summarizer has minimal context."
+
+## Target audience
+Students and professionals interested in text summarization and NLP, as well as general viewers curious about how short transcripts are handled by AI.
+
+## Actionable takeaways
+- When working with ultra-short transcripts, supplement with metadata or topic notes to improve summaries.
+- Use minimal-context examples to test and understand summarizer limitations.
+- If summarizing, concentrate on the explicit ideas present: the transcript type and its brevity.
+- For tool builders, flag ultra-short inputs and prompt for additional context or data to enhance accuracy.
